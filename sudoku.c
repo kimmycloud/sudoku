@@ -5,6 +5,8 @@ void print_board (int board[9][9]);
 void make3x3grid (int board[9][9], int grid [3][3][3][3]);
 int validmove (int board[9][9], int grid [3][3][3][3], int row, int column, int entry);
 int unfinishedboard (int board [9][9]);
+struct Numbers;
+void numbers_tally (int board[9][9], struct Numbers *tallyptr);
 
 int main () {
 	FILE *in; // Declare file
@@ -13,6 +15,7 @@ int main () {
 	int board [9][9];
 	int grid [3][3][3][3];
 	int row, column, entry;
+	char rowchar[10], columnchar[10], entrychar[10];
 	
 	// Scan file for values for each index of board
 	for (int i = 0; i<9; i++) {
@@ -20,38 +23,46 @@ int main () {
 			fscanf(in, "%d", &board[i][j]);
 		}
 	}
-	do{
-	print_board(board); // Call print_board function
+	do {
+		printf("\n");
+		print_board(board); // Call print_board function
+		printf("\n");
+		make3x3grid(board, grid);
 	
-	printf("\n");
-	
-	make3x3grid(board, grid);
-
-	
-	printf("Pick a row: ");
-	scanf("%d", &row);
-	row--;
-	
-	printf("Pick a column: ");
-	scanf("%d", &column);
-	column--;
-	
-	printf("What number would you like to enter? (0-9): ");
-	scanf("%d", &entry);
-	
-	int isvalid = validmove(board, grid, row, column, entry);
-	
-	if (isvalid) {
-		board[row][column] = entry;
-		//print_board(board);
-		//make3x3grid(board,grid);
-	} 
-	
-	
+		do {
+			do {
+				printf("Pick a row (1-9): ");
+				scanf(" %9s", rowchar); // add space before %s in scanf and limit chars to 9
+				row = rowchar[0] - '0'; // Convert char to int
+				row--;
+			} while (rowchar[1] != '\0' || rowchar[0] < '1' || rowchar[0] > '9');
+			
+			do {
+				printf("Pick a column (1-9): ");
+				scanf(" %9s", columnchar);
+				column = columnchar[0] - '0';
+				column--;
+			} while (columnchar[1] !='\0' || columnchar[0] < '1' || columnchar[0] >'9');
+			
+			// Check if entry is already in that row
+			if (board[row][column] !=0) printf("This cell is already filled. Select an empty cell\n");
+		} while (board[row][column]!= 0);
+		
+		do {
+			printf("What number would you like to enter? (1-9): ");
+			scanf(" %9s", entrychar);
+			entry = entrychar[0] - '0';
+		} while (entrychar[1] != '\0' || entrychar[0] <'1' || entrychar[0] > '9');
+		
+		int isvalid = validmove(board, grid, row, column, entry);
+		
+		if (isvalid) {
+			board[row][column] = entry;
+		} else printf("\nInvalid move. Please try again.\n");
 	} while (unfinishedboard (board));
 	
 	print_board(board);
-	printf("Sudoku puzzle completed!\n");
+	printf("CONGRATULATIONS! Sudoku puzzle solved!\n");
 	
 	
 	fclose(in); // Close file
@@ -87,6 +98,36 @@ void print_3rows (int board [9][9], int startrow) {
 	}
 }
 
+struct Numbers {
+	int ones;
+	int twos;
+	int threes;
+	int fours;
+	int fives;
+	int sixes;
+	int sevens;
+	int eights;
+	int nines;
+};
+
+// this function needs to be seen by print_board function
+void numbers_tally (int board[9][9], struct Numbers *tallyptr) {
+	// For each value in board, check how many of each number there are
+	for (int i = 0; i <9; i++) {
+		for (int j  = 0; j<9; j++) {
+			if (board[i][j] == 1) tallyptr->ones++;
+			if (board[i][j] == 2) tallyptr->twos++;
+			if (board[i][j] == 3) tallyptr->threes++;
+			if (board[i][j] == 4) tallyptr->fours++;
+			if (board[i][j] == 5) tallyptr->fives++;
+			if (board[i][j] == 6) tallyptr->sixes++;
+			if (board[i][j] == 7) tallyptr->sevens++;
+			if (board[i][j] == 8) tallyptr->eights++;
+			if (board[i][j] == 9) tallyptr->nines++;	
+		}
+	}
+}
+
 void print_board (int board [9][9]) {
 	// Use for loop to call print_3rows (for loop increment by 3)
 	for (int i =0; i<=6; i+=3) {
@@ -100,8 +141,32 @@ void print_board (int board [9][9]) {
 			printf("\n\n");
 		}
 	}
+	
+	// Print remaining 1-9 under the sudoku board
+	struct Numbers tally = {0,0,0,0,0,0,0,0,0};
+	numbers_tally(board, &tally);
+	
+	printf("\nRemaining to fill:\n\n");
+	
+	if (tally.ones == 9) printf("   ");
+		else printf("  1");
+	if (tally.twos == 9) printf("    ");
+		else printf("   2");
+	if (tally.threes == 9) printf("    ");
+		else printf("   3");
+	if (tally.fours == 9) printf("    ");
+		else printf("   4");
+	if (tally.fives == 9) printf("    ");
+		else printf("   5");
+	if (tally.sixes == 9) printf("    ");
+		else printf("   6");
+	if (tally.sevens == 9) printf("    ");
+		else printf("   7");
+	if (tally.eights == 9) printf("    ");
+		else printf("   8");
+	if (tally.nines == 9) printf("      \n");
+		else printf("   9  \n");
 }
-
 
 void make3x3grid (int board[9][9], int grid [3][3][3][3]) {
 	for (int i =0; i<3; i++) {
@@ -119,15 +184,9 @@ void make3x3grid (int board[9][9], int grid [3][3][3][3]) {
 
 
 int validmove (int board[9][9], int grid [3][3][3][3], int row, int column, int entry) {
-	// Check if entry is already in that row
-	if (board[row][column] !=0) {
-		printf("Select an empty cell\n");
-		return -1;
-	}
 	for (int i = 0; i < 9; i++) {
 		if (board[row][i] == entry) return 0;
 	}
-	
 	// Check if entry is already in that column
 	for (int i = 0; i < 9; i++) {
 		if (board[i][column] == entry) return 0;
@@ -154,7 +213,7 @@ int unfinishedboard (int board [9][9]) {
 	else return 1;
 }
 
-	/*
+	/* test print 3x3
 	 * test print the 3x3 grid
 	for (int i =0; i<3; i++) {
 		for (int j = 0; j<3; j++) {
