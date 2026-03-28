@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
-
+#include <stdlib.h>
+#include <time.h>
 #define red "\x1b[31m"
 #define green "\x1b[32m" 
 #define purple "\x1b[35m"
@@ -8,11 +9,28 @@
 #define bold "\x1b[1m"
 #define italic "\x1b[3m"
 #define underline "\x1b[4m"
-#define background "\x1b[45m" // good ones: 40dark grey, purple 45, green 42
+#define background "\x1b[45m"
 
 // To print Unicode characters in Windows
 #ifdef _WIN32
 	#include <windows.h>
+	//for fireworks
+	#define SLEEP(ms) Sleep(ms)
+    #define CLEAR() system("cls")
+    #define RED     "\033[31m"
+    #define GREEN   "\033[32m"
+    #define CYAN    "\033[36m"
+    #define PURPLE  "\033[35m"
+    #define RESET   "\033[0m"
+#else
+    #include <unistd.h>
+    #define SLEEP(ms) usleep((ms) * 1000)
+    #define CLEAR() printf("\033[2J\033[H")
+    #define RED     "\033[31m"
+    #define GREEN   "\033[32m"
+    #define CYAN    "\033[36m"
+    #define PURPLE  "\033[35m"
+    #define RESET   "\033[0m"	
 #endif
 
 #define sub1 "\u2081"
@@ -44,6 +62,9 @@ void updatepencil (int board[9][9], int pencil [3][3][3][3][3][3], int row, int 
 int haspencilmarks (int pencil [3][3][3][3][3][3], int i, int j, int k, int l);
 void generatepencil (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3]);
 void clear_screen();
+void move_cursor_top();
+void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]);
+void print_finalboard (int board[9][9]);
 
 
 int main () {
@@ -99,13 +120,14 @@ int main () {
 			inputoutcome(isvalid, board, solvedpuzzle, row, column, entry, &mistakes, message, pencil); // based on isvalid, print invalid or fill cell
 		}	
 		
+		// Skip inputting values to right before finish screen
+		for (int x = 0; x<9; x++) 
+			for (int y = 0; y<8; y++) 
+				board[x][y] = solvedpuzzle[x][y];
+		
 	} while (unfinishedboard (board)); // keep repeating until the board no longer has 0
 	
-	highlighted = -1; // Set highlighted back to -1 when printing the finished board
-	clear_screen();
-	print_boardpencil(board, pencil, &highlighted); // print the final finished board
-	printf(green"CONGRATULATIONS! Sudoku puzzle solved!\n"resetcolor);
-	
+	fireworks(board, pencil);
 	fclose(in); // Close file
 	return 0;
 }
@@ -116,6 +138,16 @@ void clear_screen() {
 		system("cls");
 	#else
 		printf("\033[2J\033[H");
+	#endif	
+}
+
+void move_cursor_top() {
+	#ifdef _WIN32
+		//#include <windows.h> (already included above)
+		COORD coord = {0,0};
+		SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+	#else
+		printf("\033[H");
 	#endif	
 }
 
@@ -410,6 +442,125 @@ void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row
 			sprintf(message, bold italic green"Nice! Grid is now updated with your input\n"resetcolor);
 		}
 	}
+}
+
+void print_finalboard (int board[9][9]) {
+	for (int x=0; x<9; x++) { // board row
+		for (int m = 0; m<3; m++) { // pencil mark row
+			printf(" ");
+			for (int y = 0; y <9; y++) { // board column
+				for (int n = 0; n<3; n++) { // pencil mark column
+					if (m==1 && n==1) {
+						printf(bold"%d"resetcolor, board[x][y]);  // print board value in centre of mxn matrix
+					} else {
+						printf(" ");
+					}	
+				}
+				if (y==2 || y ==5) printf("    |    "); // vertical lines to separate the 3x3 blocks
+				else if (y != 8) printf("     "); // add space between each number
+			} 
+			printf("\n");	
+		}
+		printf("                        |                           |\n");
+		if (x==2 || x==5) {
+				for (int s=0; s<77;s++) printf("_");
+				printf("\n\n");
+		}
+	}
+}
+
+
+void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]) {
+    #define FW_WIDTH  80
+    #define FW_HEIGHT 10
+    #define FW_MAX    50
+
+    typedef struct { float x, y, vx, vy; int alive, color; } FWParticle;
+    FWParticle p[FW_MAX];
+    memset(p, 0, sizeof(p));
+    const char *colors[] = {RED, GREEN, CYAN, PURPLE};
+    int color = 0, frame = 0;
+
+    // hide cursor to reduce flicker
+    #ifdef _WIN32
+        HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+        CONSOLE_CURSOR_INFO cursorInfo;
+        GetConsoleCursorInfo(console, &cursorInfo);
+        cursorInfo.bVisible = FALSE;
+        SetConsoleCursorInfo(console, &cursorInfo);
+    #else
+        printf("\033[?25l");
+    #endif
+
+    CLEAR();  // clear once at the start only
+
+    while (1) {
+        if (frame % 20 == 0) {
+            float x = 5.0f + rand() % (FW_WIDTH - 10);
+            float y = 2.0f + rand() % (FW_HEIGHT - 4);
+            for (int i = 0; i < FW_MAX; i++) {
+                if (!p[i].alive) {
+                    p[i].x     = x;
+                    p[i].y     = y;
+                    p[i].vx    = ((float)(rand() % 21) - 10) / 5.0f;
+                    p[i].vy    = ((float)(rand() % 21) - 10) / 5.0f;
+                    p[i].alive = 6 + rand() % 5;
+                    p[i].color = color;
+                }
+            }
+            color = (color + 1) % 4;
+        }
+
+        // update particles
+        for (int i = 0; i < FW_MAX; i++) {
+            if (!p[i].alive) continue;
+            p[i].x  += p[i].vx;
+            p[i].y  += p[i].vy;
+            p[i].vy += 0.2f;
+            p[i].alive--;
+        }
+
+        // build grid
+        int grid[FW_HEIGHT][FW_WIDTH];
+        int gcol[FW_HEIGHT][FW_WIDTH];
+        memset(grid, 0, sizeof(grid));
+        for (int i = 0; i < FW_MAX; i++) {
+            if (!p[i].alive) continue;
+            int px = (int)p[i].x;
+            int py = (int)p[i].y;
+            if (px >= 0 && px < FW_WIDTH && py >= 0 && py < FW_HEIGHT) {
+                grid[py][px] = 1;
+                gcol[py][px] = p[i].color;
+            }
+        }
+
+        // move to top and overwrite — no cls, no flicker
+        move_cursor_top();
+
+        // fireworks
+        for (int y = 0; y < FW_HEIGHT; y++) {
+            for (int x = 0; x < FW_WIDTH; x++) {
+                if (grid[y][x]) printf("%s*%s", colors[gcol[y][x]], RESET);
+                else putchar(' ');
+            }
+            putchar('\n');
+        }
+        
+        // congratulations message
+        printf(GREEN "\n            *~*~*~*~*  Congratulations! Puzzle Completed!  *~*~*~*~*\n\n" RESET);
+
+        // finished board
+        printf("\n");
+        print_finalboard (board);
+        printf("\n");
+
+        #ifdef _WIN32
+            Sleep(80);
+        #else
+            usleep(80 * 1000);
+        #endif
+        frame++;
+    }
 }
 
 
