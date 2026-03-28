@@ -12,6 +12,7 @@
 #define background "\x1b[45m"
 
 // To print Unicode characters in Windows
+// Also added fireworks
 #ifdef _WIN32
 	#include <windows.h>
 	//for fireworks
@@ -33,6 +34,7 @@
     #define RESET   "\033[0m"	
 #endif
 
+// To print pencil marks
 #define sub1 "\u2081"
 #define sub2 "\u2082"
 #define sub3 "\u2083"
@@ -55,6 +57,19 @@ struct Numbers {
 	int nines;
 };
 
+const char* block(int i, int j) {
+    if (i==0 && j==0) return "top left";
+    if (i==0 && j==1) return "top middle";
+    if (i==0 && j==2) return "top right";
+    if (i==1 && j==0) return "middle left";
+    if (i==1 && j==1) return "middle";
+    if (i==1 && j==2) return "middle right";
+    if (i==2 && j==0) return "bottom left";
+    if (i==2 && j==1) return "bottom middle";
+    if (i==2 && j==2) return "bottom right";
+    return "unknown";
+}
+
 void print_3rows (int board[9][9], int startrow, int *highlighted); // prints the numbers on board, 3 rows at a time
 void print_boardpencil (int board[9][9], int pencil [3][3][3][3][3][3], int *highlighted);
 //void print_board (int board[9][9], int *highlighted); // prints the entire sudoku board
@@ -70,16 +85,18 @@ int solvepuzzle (int solvedpuzzle[9][9], int solvedpuzzlegrid [3][3][3][3]); // 
 void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes, char *message, int pencil [3][3][3][3][3][3], int *highlighted, struct Numbers *tally); // prints if move is valid
 int validateinput (int board[9][9], int *row, int *column, int *entry); // ensures the user inputs 0-9
 void highlight (void (*print_board)(int board[9][9], int pencil [3][3][3][3][3][3], int *highlighted), int board [9][9], int pencil [3][3][3][3][3][3], int *highlighted); // highlights all the same numbers
-void updatepencil (int board[9][9], int pencil [3][3][3][3][3][3], int row, int column, int entry);
-int haspencilmarks (int pencil [3][3][3][3][3][3], int i, int j, int k, int l);
-void penciloption (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3], int *pencilactive);
-int addpencil (int board[9][9], int pencil [3][3][3][3][3][3], char *message);
-void generatepencil (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3]);
-void clear_screen();
-void move_cursor_top();
-void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]);
-void print_finalboard (int board[9][9]);
-
+void updatepencil (int board[9][9], int pencil [3][3][3][3][3][3], int row, int column, int entry); // with each new input, automatically remove conflicting pencil marks 
+int haspencilmarks (int pencil [3][3][3][3][3][3], int i, int j, int k, int l); // check if a cell has any pencil marks
+void penciloption (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3], int *pencilactive); // Option to add all pencil marks or remove all pencil marks
+int addpencil (int board[9][9], int pencil [3][3][3][3][3][3], char *message); // allow user to add or remove a pencil mark from a specific cell
+void generatepencil (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3]); // generates all the valid pencil marks for the board
+void clear_screen(); // specifically for Windows to keep board in place on screen
+void move_cursor_top(); // specifically for Windows to keep fireworks graphics smooth
+void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]); // fireworks display after completing the puzzle
+void print_finalboard (int board[9][9]); // prints a smaller version of the game board on the final screen
+void updatecandidates (int board[9][9], int pencil[3][3][3][3][3][3], int candidates[9][9][9]); // updates the candidates board which holds all possible candidates for hints implementation
+int lastcell (int board[9][9], int candidates[9][9][9], char *message); // Hint that checks for one unfilled cell per row/column/3x3 grid
+void hints (int board[9][9], int candidates [9][9][9], char *message); // Umbrella hint function that calls all other hint functions in order
 
 
 int main () {
@@ -88,14 +105,27 @@ int main () {
 		SetConsoleOutputCP(65001);
 	#endif
 	
-	FILE *in; // Declare file
-	in = fopen ("sudokutest.txt", "r"); // Open file with test values in read mode
+	FILE *in; // Declare file to read
+	int difficulty;
+	char difficultychar[10];
+	char filename[20];
+	do {
+		printf(bold"To start playing Sudoku, please first select a difficulty:\n"resetcolor);
+		printf(green bold italic"(1)"resetcolor" Easy\n"green bold italic"(2)"resetcolor" Medium\n"green bold italic"(3)"resetcolor" Hard\n"green bold italic"(4)"resetcolor" Expert\n"green bold italic"(5)"resetcolor" Extreme\n");
+		scanf("%9s", difficultychar);
+	} while (difficultychar[1] != '\0' || difficultychar[0] < '1' || difficultychar[0] > '5');
+	difficulty = difficultychar[0] - '0';
+	sprintf(filename, "sudokupuzzle%d.txt", difficulty);
+	
+	
+	in = fopen (filename, "r"); // Open file with test values in read mode
 	int board [9][9], grid [3][3][3][3], solvedpuzzle [9][9], solvedpuzzlegrid [3][3][3][3], row, column, entry, option;
 	char optionchar[10];
 	char message[100] = "";
 	int mistakes=0;
 	int highlighted = -1; // Don't want to highlight any number for default
 	int pencil[3][3][3][3][3][3] = {0};
+	int candidates[9][9][9] = {0};
 	int pencilactive=0;
 	struct Numbers tally = {0,0,0,0,0,0,0,0,0};
 	
@@ -126,9 +156,10 @@ int main () {
 			printf(green italic bold"(3)"resetcolor" Add/erase a pencil mark     "); 
 			if (pencilactive) printf(green bold italic"(4)"resetcolor" Clear all pencil marks\n");
 			else printf(green bold italic"(4)"resetcolor" Fast pencil (fill all pencil marks)\n");
+			printf(green italic bold"(5)"resetcolor" Ask for a hint\n");
 			scanf(" %9s", optionchar); // add space before %s in scanf and limit chars to 9
 			option = optionchar[0] - '0'; // Convert char to int
-		} while (optionchar[1] != '\0' || option <1 || option >4);
+		} while (optionchar[1] != '\0' || option <1 || option >5);
 		
 		if (option ==1) {
 			highlight(print_boardpencil, board, pencil, &highlighted); // Option 1: highlight a number
@@ -144,6 +175,9 @@ int main () {
 			addpencil(board, pencil, message);
 		} else if (option == 4) {
 			penciloption(board, grid, pencil, &pencilactive);
+		} else if (option ==5) {
+			updatecandidates(board, pencil, candidates);
+			hints(board,candidates,message);
 		}
 		
 		//Skip inputting values to right before finish screen
@@ -159,6 +193,7 @@ int main () {
 }
 
 void clear_screen() {
+	// To keep board front and centre with every input on Windows (not an issue on Mac)
 	#ifdef _WIN32
 		//#include <windows.h> (already included above)
 		system("cls");
@@ -168,6 +203,7 @@ void clear_screen() {
 }
 
 void move_cursor_top() {
+	// To keep fireworks graphics smooth on Windows (not an issue on Mac)
 	#ifdef _WIN32
 		//#include <windows.h> (already included above)
 		COORD coord = {0,0};
@@ -176,10 +212,6 @@ void move_cursor_top() {
 		printf("\033[H");
 	#endif	
 }
-
-
-
-
 
 // this function needs to be seen by print_board function
 void numbers_tally (int board[9][9], struct Numbers *tally) {
@@ -423,7 +455,7 @@ int validateinput (int board[9][9], int *row, int *column, int *entry) {
 		scanf(" %9s", entrychar);
 		*entry = entrychar[0] - '0';
 	} while (entrychar[1] != '\0' || entrychar[0] <'0' || entrychar[0] > '9');
-	if (*entry == -1) return 0;
+	if (*entry == 0) return 0;
 	
 	return 1;
 }
@@ -576,6 +608,124 @@ void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row
 		}
 	}
 }
+
+void updatecandidates (int board[9][9], int pencil[3][3][3][3][3][3], int candidates[9][9][9]) {
+	for (int x = 0; x<9; x++) {
+		for (int y = 0; y<9; y++) {
+			int i = x/3;
+			int j = y/3;
+			int k = x % 3;
+			int l = y % 3;
+			
+			if (board[x][y] !=0) {
+				for (int cand = 0; cand <9; cand++) {
+					candidates[x][y][cand] = 0;
+				}
+				candidates[x][y][board[x][y]-1] = 1; // (the board entry - 1) = index of candidate where 0 if false, 1 if true				
+			} else {
+				for (int m = 0; m <3; m++)
+					for (int n = 0; n<3; n++) 
+						candidates [x][y][m*3+n] = pencil[i][j][k][l][m][n];
+			}
+		}
+	}
+}
+
+
+int lastcell (int board[9][9], int candidates[9][9][9], char *message) {
+	// Check if last cell of row
+	for (int x = 0; x<9; x++) {
+		int emptycol = -1;
+		int count = 0;
+		for (int y = 0; y<9; y++) {
+			if (board[x][y]==0) {
+				emptycol=y, count++;
+			}
+		}
+		if (count ==1) {
+			int present[10] = {0};
+			// Find the missing number
+			for (int y = 0; y<9; y++)  present[board[x][y]]=1;
+			for (int cand = 1; cand <=9; cand++) {
+				if (!present[cand]) {
+					sprintf(message, bold green italic "Hint:\nOnly %d can go in the last cell of row %d (column %d)\n"resetcolor, cand, x+1, emptycol+1);
+					return 1; // Return 1 to exit function
+				}
+			}
+		}
+	}
+	
+	// Check if last cell of column
+	for (int y = 0; y<9; y++) {
+		int emptyrow = -1;
+		int count = 0;
+		for (int x = 0; x<9; x++) {
+			if (board[x][y]==0) {
+				emptyrow=x, count++;
+			}
+		}
+		if (count ==1) {
+			int present[10]={0};
+			// Find the missing number
+			for (int x = 0; x<9; x++) present[board[x][y]] = 1;
+			for (int cand = 1; cand <=9; cand++) {
+				if (!present[cand]) {
+					sprintf(message, bold green italic"Hint:\nOnly %d can go in the last cell of column %d (row %d)\n"resetcolor, cand, y+1, emptyrow+1);
+					return 1;
+				}
+			}
+		}
+	}
+	
+	// Check blocks
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j<3; j++) {
+			//int emptyrow = -1;
+			//int emptycol = -1;
+			int count = 0;
+			for (int k = 0; k<3; k++) {
+				for (int l = 0; l<3; l++) {
+					int x = 3*i + k;
+					int y = j*3 + l;
+					if (board[x][y] == 0) {
+						//emptyrow = x;
+						//emptycol = y;
+						count++;
+					}
+				}
+			}
+			if (count ==1) {
+				int present[10] = {0};
+				for (int k = 0; k<3; k++) 
+					for (int l = 0; l<3; l++) 
+						present[board[i*3+k][j*3+l]] = 1;
+				for (int cand = 1; cand <=9; cand++) {
+					if (!present[cand]) {
+						sprintf(message, green bold italic"Hint:\nOnly %d can go in the last cell of the %s 3x3 block.\n"resetcolor,
+							cand, block(i,j));
+						return 1;
+					}
+				}
+			}
+		}
+	}
+
+	return 0; // If no last cell found
+}
+
+/*
+int nakedsingle (int board[9][9], int candidates [9][9][9], char *message) {
+	INCOMPLETE - continue adding hints
+}
+*/
+
+void hints (int board[9][9], int candidates [9][9][9], char *message) {
+	if (lastcell(board, candidates, message)) return;
+	/*if (nakedsingle(board, candidates, message)) return;
+	 * add the rest of the hints here */
+    sprintf(message, red bold italic"Sorry, no hint found.\n"resetcolor);
+}
+
 
 void print_finalboard (int board[9][9]) {
 	for (int x=0; x<9; x++) { // board row
