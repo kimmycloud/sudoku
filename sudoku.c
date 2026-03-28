@@ -3,26 +3,26 @@
 #define green "\x1b[32m"
 #define resetcolor "\x1b[0m"
 
-void print_3rows (int board[9][9], int startrow, int highlighted);
-void print_board (int board[9][9], int highlighted);
-void make3x3grid (int board[9][9], int grid [3][3][3][3]);
-int validmove (int board[9][9], int grid [3][3][3][3], int row, int column, int entry);
-int unfinishedboard (int board [9][9]);
-struct Numbers;
-void numbers_tally (int board[9][9], struct Numbers *tallyptr);
-int solvepuzzle (int solvedpuzzle[9][9], int solvedpuzzlegrid [3][3][3][3]);
-void print_valid (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes);
-void validateinput (int board[9][9], char rowchar[10], int *row, char columnchar[10], int *column, char entrychar[10], int *entry);
-
+void print_3rows (int board[9][9], int startrow, int *highlighted); // prints the numbers on board, 3 rows at a time
+void print_board (int board[9][9], int *highlighted); // prints the entire sudoku board
+void make3x3grid (int board[9][9], int grid [3][3][3][3]); // converts 9x9 grid into 3x3x3x3 grid
+int validmove (int board[9][9], int grid [3][3][3][3], int row, int column, int entry); // checks same row, column or 3x3 grid
+int unfinishedboard (int board [9][9]); // checks if the board is incomplete
+struct Numbers; // declares a struct that counts tally of each number on board
+void numbers_tally (int board[9][9], struct Numbers *tallyptr); // counts how many of each number is on board
+int solvepuzzle (int solvedpuzzle[9][9], int solvedpuzzlegrid [3][3][3][3]); // uses recursion to make a solved puzzle to check user's mistakes
+void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes); // prints if move is valid
+void validateinput (int board[9][9], char rowchar[10], int *row, char columnchar[10], int *column, char entrychar[10], int *entry); // ensures the user inputs 0-9
+void highlight (void (*print_board)(int board[9][9], int *highlighted), int board [9][9], int *highlighted); // highlights all the same numbers
 
 int main () {
 	FILE *in; // Declare file
 	in = fopen ("sudokutest2.txt", "r"); // Open file with test values in read mode
 	
-	int board [9][9], grid [3][3][3][3], solvedpuzzle [9][9], solvedpuzzlegrid [3][3][3][3], row, column, entry;
-	char rowchar[10], columnchar[10], entrychar[10];
+	int board [9][9], grid [3][3][3][3], solvedpuzzle [9][9], solvedpuzzlegrid [3][3][3][3], row, column, entry, option;
+	char rowchar[10], columnchar[10], entrychar[10], optionchar[10];
 	int mistakes=0;
-	int highlighted = -1;
+	int highlighted = -1; // Don't want to highlight any number for default
 	// Scan file for values to make the Sudoku board
 	for (int i = 0; i<9; i++) {
 		for (int j = 0 ; j < 9; j++) {
@@ -34,17 +34,29 @@ int main () {
 	solvepuzzle(solvedpuzzle, solvedpuzzlegrid); // Store the solved puzzle in solvedpuzzle
 	do {
 		printf("\n");
-		print_board(board, highlighted); // Print the sudoku board
+		print_board(board, &highlighted); // Print the sudoku board
 		printf("\n");
 		make3x3grid(board, grid); // Make a 3x3x3x3 version of the 9x9 board
-		validateinput(board, rowchar, &row, columnchar, &column, entrychar, &entry); // ask user for input, validate each input
-		printf("\n");
-		int isvalid = validmove(board, grid, row, column, entry); // Return result of validmove function
-		print_valid(isvalid, board, solvedpuzzle, row, column, entry, &mistakes); // based on isvalid, print invalid or fill up board
+		
+		// Keep prompting user to pick an option as long as they don't input 1 or 2
+		do {
+			printf("Choose an option:\n(1) Highlight a number\n(2) Fill a cell\n"); 
+			scanf(" %9s", optionchar); // add space before %s in scanf and limit chars to 9
+			option = optionchar[0] - '0'; // Convert char to int
+		} while (optionchar[1] != '\0' || (optionchar[0] != '1' && optionchar[0] != '2'));
+		
+		if (option ==1) highlight(print_board, board, &highlighted); // Option 1: highlight a number
+		// Option 2: take user input for cell
+		else if (option == 2) {
+			validateinput(board, rowchar, &row, columnchar, &column, entrychar, &entry); // ask user for input, validate each input
+			printf("\n");
+			int isvalid = validmove(board, grid, row, column, entry); // check if the move is valid
+			inputoutcome(isvalid, board, solvedpuzzle, row, column, entry, &mistakes); // based on isvalid, print invalid or fill cell
+		}	
 	} while (unfinishedboard (board)); // keep repeating until the board no longer has 0
-	
-	print_board(board, highlighted); // print the final finished board
-	printf("CONGRATULATIONS! Sudoku puzzle solved!\n");
+	highlighted = -1;
+	print_board(board, &highlighted); // print the final finished board
+	printf(green"CONGRATULATIONS! Sudoku puzzle solved!\n"resetcolor);
 	
 	fclose(in); // Close file
 	return 0;
@@ -77,9 +89,8 @@ void validateinput (int board[9][9], char rowchar[10], int *row, char columnchar
 		*entry = entrychar[0] - '0';
 	} while (entrychar[1] != '\0' || entrychar[0] <'1' || entrychar[0] > '9');
 }
-
 // print_3rows function prints three rows at a time
-void print_3rows (int board [9][9], int startrow, int highlighted) {
+void print_3rows (int board [9][9], int startrow, int *highlighted) {
 	// Parameter startrow allows us to call print_3rows
 	// starting from different initial values
 	
@@ -87,7 +98,7 @@ void print_3rows (int board [9][9], int startrow, int highlighted) {
 		for (int j = 0; j < 9; j++) {
 			// Print value first
 			if (board [i][j] == 0) printf(".");
-			else if (board[i][j] == highlighted) printf(green"%d"resetcolor, board[i][j]);
+			else if (board[i][j] == *highlighted) printf(green"%d"resetcolor, board[i][j]);
 			else printf("%d", board[i][j]);
 			
 			// Except for last column, separate values by spaces
@@ -117,7 +128,6 @@ struct Numbers {
 	int eights;
 	int nines;
 };
-
 // this function needs to be seen by print_board function
 void numbers_tally (int board[9][9], struct Numbers *tallyptr) {
 	// For each value in board, check how many of each number there are
@@ -136,10 +146,10 @@ void numbers_tally (int board[9][9], struct Numbers *tallyptr) {
 	}
 }
 
-void print_board (int board [9][9], int highlighted) {
+void print_board (int board [9][9], int *highlighted) {
 	// Use for loop to call print_3rows (for loop increment by 3)
 	for (int i =0; i<=6; i+=3) {
-		print_3rows(board, i,highlighted); // print three rows at a time
+		print_3rows(board, i, highlighted); // print three rows at a time
 		
 		// If not the last set of triples, print separator rows
 		if (i !=6) {
@@ -176,6 +186,15 @@ void print_board (int board [9][9], int highlighted) {
 		else printf("   9  \n");
 }
 
+void highlight (void (*print_board)(int board[9][9], int *highlighted), int board [9][9], int *highlighted) {
+	char highlightchar[10];
+	do {	
+			printf("Pick a number to highlight (1-9): ");
+			scanf(" %9s", highlightchar); // add space before %s in scanf and limit chars to 9
+			*highlighted = highlightchar[0] - '0'; // Convert char to int
+	} while (highlightchar[1] != '\0' || highlightchar[0] < '1' || highlightchar[0] > '9');
+}
+
 void make3x3grid (int board[9][9], int grid [3][3][3][3]) {
 	for (int i =0; i<3; i++) {
 		for (int j = 0; j<3; j++) {
@@ -189,7 +208,6 @@ void make3x3grid (int board[9][9], int grid [3][3][3][3]) {
 		}
 	}
 }
-
 
 int validmove (int board[9][9], int grid [3][3][3][3], int row, int column, int entry) {
 	// Check if entry is already in that row
@@ -244,7 +262,7 @@ int solvepuzzle (int solvedpuzzle[9][9], int solvedpuzzlegrid [3][3][3][3]) {
 	return 1;
 }
 
-void print_valid (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes) {
+void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes) {
 	if (isvalid ==0) {
 		(entry == 8) ? printf(red"There is already an %d in this row. Please try again.\n"resetcolor, entry) : 
 		printf(red"There is already a %d in this row. Please try again.\n"resetcolor, entry);
