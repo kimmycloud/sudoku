@@ -1,7 +1,10 @@
 #include <stdio.h>
+#define red "\x1b[31m"
+#define green "\x1b[32m"
+#define resetcolor "\x1b[0m"
 
-void print_3rows (int board[9][9], int startrow);
-void print_board (int board[9][9]);
+void print_3rows (int board[9][9], int startrow, int highlighted);
+void print_board (int board[9][9], int highlighted);
 void make3x3grid (int board[9][9], int grid [3][3][3][3]);
 int validmove (int board[9][9], int grid [3][3][3][3], int row, int column, int entry);
 int unfinishedboard (int board [9][9]);
@@ -19,7 +22,7 @@ int main () {
 	int board [9][9], grid [3][3][3][3], solvedpuzzle [9][9], solvedpuzzlegrid [3][3][3][3], row, column, entry;
 	char rowchar[10], columnchar[10], entrychar[10];
 	int mistakes=0;
-	
+	int highlighted = -1;
 	// Scan file for values to make the Sudoku board
 	for (int i = 0; i<9; i++) {
 		for (int j = 0 ; j < 9; j++) {
@@ -27,23 +30,20 @@ int main () {
 			solvedpuzzle[i][j] = board[i][j]; // Put a copy of board into solvedpuzzle
 		}
 	}
-	
+	make3x3grid(solvedpuzzle, solvedpuzzlegrid); // Make a 3x3x3x3 version of 9x9 solvedpuzzle
+	solvepuzzle(solvedpuzzle, solvedpuzzlegrid); // Store the solved puzzle in solvedpuzzle
 	do {
 		printf("\n");
-		print_board(board); // Print the sudoku board
+		print_board(board, highlighted); // Print the sudoku board
 		printf("\n");
-		
 		make3x3grid(board, grid); // Make a 3x3x3x3 version of the 9x9 board
-		make3x3grid(solvedpuzzle, solvedpuzzlegrid); // Make a 3x3x3x3 version of 9x9 solvedpuzzle
-		solvepuzzle(solvedpuzzle, solvedpuzzlegrid); // Store the solved puzzle in solvedpuzzle
 		validateinput(board, rowchar, &row, columnchar, &column, entrychar, &entry); // ask user for input, validate each input
-		
 		printf("\n");
 		int isvalid = validmove(board, grid, row, column, entry); // Return result of validmove function
 		print_valid(isvalid, board, solvedpuzzle, row, column, entry, &mistakes); // based on isvalid, print invalid or fill up board
 	} while (unfinishedboard (board)); // keep repeating until the board no longer has 0
 	
-	print_board(board); // print the final finished board
+	print_board(board, highlighted); // print the final finished board
 	printf("CONGRATULATIONS! Sudoku puzzle solved!\n");
 	
 	fclose(in); // Close file
@@ -79,15 +79,15 @@ void validateinput (int board[9][9], char rowchar[10], int *row, char columnchar
 }
 
 // print_3rows function prints three rows at a time
-void print_3rows (int board [9][9], int startrow) {
+void print_3rows (int board [9][9], int startrow, int highlighted) {
 	// Parameter startrow allows us to call print_3rows
 	// starting from different initial values
 	
 	for (int i = startrow; i < startrow + 3; i++) {
 		for (int j = 0; j < 9; j++) {
-			
 			// Print value first
 			if (board [i][j] == 0) printf(".");
+			else if (board[i][j] == highlighted) printf(green"%d"resetcolor, board[i][j]);
 			else printf("%d", board[i][j]);
 			
 			// Except for last column, separate values by spaces
@@ -136,10 +136,10 @@ void numbers_tally (int board[9][9], struct Numbers *tallyptr) {
 	}
 }
 
-void print_board (int board [9][9]) {
+void print_board (int board [9][9], int highlighted) {
 	// Use for loop to call print_3rows (for loop increment by 3)
 	for (int i =0; i<=6; i+=3) {
-		print_3rows(board, i); // print three rows at a time
+		print_3rows(board, i,highlighted); // print three rows at a time
 		
 		// If not the last set of triples, print separator rows
 		if (i !=6) {
@@ -246,21 +246,21 @@ int solvepuzzle (int solvedpuzzle[9][9], int solvedpuzzlegrid [3][3][3][3]) {
 
 void print_valid (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes) {
 	if (isvalid ==0) {
-		(entry == 8) ? printf("There is already an %d in this row. Please try again.\n", entry) : 
-		printf("There is already a %d in this row. Please try again.\n", entry);
+		(entry == 8) ? printf(red"There is already an %d in this row. Please try again.\n"resetcolor, entry) : 
+		printf(red"There is already a %d in this row. Please try again.\n"resetcolor, entry);
 	} else if (isvalid == -1) {
-		(entry ==8) ? printf("There is already an %d in this column. Please try again.\n", entry) :
-		printf("There is already a %d in this column. Please try again.\n", entry);
+		(entry ==8) ? printf(red"There is already an %d in this column. Please try again.\n"resetcolor, entry) :
+		printf(red"There is already a %d in this column. Please try again.\n"resetcolor, entry);
 	} else if (isvalid == -2) {
-		(entry ==8) ? printf("There is already an %d in this 3x3 block. Please try again.\n", entry) :
-		printf("There is already a %d in this 3x3 block. Please try again.\n", entry);
+		(entry ==8) ? printf(red"There is already an %d in this 3x3 block. Please try again.\n"resetcolor, entry) :
+		printf(red"There is already a %d in this 3x3 block. Please try again.\n"resetcolor, entry);
 	} else if (isvalid==1) {
 		if (entry != solvedpuzzle[row][column]) {
 			(*mistakes)++;
-			printf("Wrong number inputted. Mistakes: %d\n", *mistakes);
+			printf(red"Wrong number inputted. Mistakes: %d\n"resetcolor, *mistakes);
 		} else {
 			board[row][column] = entry;
-			printf("Nice! Grid is now updated with your input\n");
+			printf(green"Nice! Grid is now updated with your input\n"resetcolor);
 		}
 	}
 }
