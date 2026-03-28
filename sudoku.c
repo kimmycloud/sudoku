@@ -43,6 +43,18 @@
 #define sub8 "\u2088"
 #define sub9 "\u2089"
 
+struct Numbers {
+	int ones;
+	int twos;
+	int threes;
+	int fours;
+	int fives;
+	int sixes;
+	int sevens;
+	int eights;
+	int nines;
+};
+
 void print_3rows (int board[9][9], int startrow, int *highlighted); // prints the numbers on board, 3 rows at a time
 void print_boardpencil (int board[9][9], int pencil [3][3][3][3][3][3], int *highlighted);
 //void print_board (int board[9][9], int *highlighted); // prints the entire sudoku board
@@ -53,18 +65,21 @@ int findblock (int grid [3][3][3][3], int row, int column, int entry);
 int validmove (int board[9][9], int grid [3][3][3][3], int row, int column, int entry); // checks same row, column or 3x3 grid
 int unfinishedboard (int board [9][9]); // checks if the board is incomplete
 struct Numbers; // declares a struct that counts tally of each number on board
-void numbers_tally (int board[9][9], struct Numbers *tallyptr); // counts how many of each number is on board
+void numbers_tally (int board[9][9], struct Numbers *tally); // counts how many of each number is on board
 int solvepuzzle (int solvedpuzzle[9][9], int solvedpuzzlegrid [3][3][3][3]); // uses recursion to make a solved puzzle to check user's mistakes
-void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes, char *message, int pencil [3][3][3][3][3][3]); // prints if move is valid
-void validateinput (int board[9][9], char rowchar[10], int *row, char columnchar[10], int *column, char entrychar[10], int *entry); // ensures the user inputs 0-9
+void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes, char *message, int pencil [3][3][3][3][3][3], int *highlighted, struct Numbers *tally); // prints if move is valid
+int validateinput (int board[9][9], int *row, int *column, int *entry); // ensures the user inputs 0-9
 void highlight (void (*print_board)(int board[9][9], int pencil [3][3][3][3][3][3], int *highlighted), int board [9][9], int pencil [3][3][3][3][3][3], int *highlighted); // highlights all the same numbers
 void updatepencil (int board[9][9], int pencil [3][3][3][3][3][3], int row, int column, int entry);
 int haspencilmarks (int pencil [3][3][3][3][3][3], int i, int j, int k, int l);
+void penciloption (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3], int *pencilactive);
+int addpencil (int board[9][9], int pencil [3][3][3][3][3][3], char *message);
 void generatepencil (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3]);
 void clear_screen();
 void move_cursor_top();
 void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]);
 void print_finalboard (int board[9][9]);
+
 
 
 int main () {
@@ -74,13 +89,15 @@ int main () {
 	#endif
 	
 	FILE *in; // Declare file
-	in = fopen ("sudokutest2.txt", "r"); // Open file with test values in read mode
+	in = fopen ("sudokutest.txt", "r"); // Open file with test values in read mode
 	int board [9][9], grid [3][3][3][3], solvedpuzzle [9][9], solvedpuzzlegrid [3][3][3][3], row, column, entry, option;
-	char rowchar[10], columnchar[10], entrychar[10], optionchar[10];
+	char optionchar[10];
 	char message[100] = "";
 	int mistakes=0;
 	int highlighted = -1; // Don't want to highlight any number for default
-	int pencil[3][3][3][3][3][3];
+	int pencil[3][3][3][3][3][3] = {0};
+	int pencilactive=0;
+	struct Numbers tally = {0,0,0,0,0,0,0,0,0};
 	
 	// Scan file for values to make the Sudoku board
 	for (int i = 0; i<9; i++) {
@@ -92,7 +109,6 @@ int main () {
 	
 	make3x3grid(solvedpuzzle, solvedpuzzlegrid); // Make a 3x3x3x3 version of 9x9 solvedpuzzle
 	make3x3grid(board, grid);
-	generatepencil(board, grid, pencil);
 	solvepuzzle(solvedpuzzle, solvedpuzzlegrid); // Store the solved puzzle in solvedpuzzle
 	
 	do {
@@ -103,27 +119,37 @@ int main () {
 		printf("%s\n", message);
 		message[0] = '\0'; // erase the message after printing
 		make3x3grid(board, grid); // Make a 3x3x3x3 version of the 9x9 board
-		generatepencil(board, grid, pencil);
+		
 		// Keep prompting user to pick an option as long as they don't input 1 or 2
 		do {
-			printf("Choose an option:\n(1) Highlight a number\n(2) Fill a cell\n"); 
+			printf("Choose an option:\n"green italic bold"(1)"resetcolor" Highlight a number          "green italic bold"(2)"resetcolor" Fill a cell\n");
+			printf(green italic bold"(3)"resetcolor" Add/erase a pencil mark     "); 
+			if (pencilactive) printf(green bold italic"(4)"resetcolor" Clear all pencil marks\n");
+			else printf(green bold italic"(4)"resetcolor" Fast pencil (fill all pencil marks)\n");
 			scanf(" %9s", optionchar); // add space before %s in scanf and limit chars to 9
 			option = optionchar[0] - '0'; // Convert char to int
-		} while (optionchar[1] != '\0' || (optionchar[0] != '1' && optionchar[0] != '2'));
+		} while (optionchar[1] != '\0' || option <1 || option >4);
 		
-		if (option ==1) highlight(print_boardpencil, board, pencil, &highlighted); // Option 1: highlight a number
-		// Option 2: take user input for cell
+		if (option ==1) {
+			highlight(print_boardpencil, board, pencil, &highlighted); // Option 1: highlight a number
+		}
+
 		else if (option == 2) {
-			validateinput(board, rowchar, &row, columnchar, &column, entrychar, &entry); // ask user for input, validate each input
-			printf("\n");
-			int isvalid = validmove(board, grid, row, column, entry); // check if the move is valid
-			inputoutcome(isvalid, board, solvedpuzzle, row, column, entry, &mistakes, message, pencil); // based on isvalid, print invalid or fill cell
-		}	
+			if (validateinput(board, &row, &column, &entry)) {
+				int isvalid = validmove(board, grid, row, column, entry); // check if the move is valid
+				inputoutcome(isvalid, board, solvedpuzzle, row, column, entry, &mistakes, message, pencil, &highlighted, &tally); // based on isvalid, print invalid or fill cell
+				printf("\n");
+			}
+		} else if (option == 3) {
+			addpencil(board, pencil, message);
+		} else if (option == 4) {
+			penciloption(board, grid, pencil, &pencilactive);
+		}
 		
-		// Skip inputting values to right before finish screen
-		for (int x = 0; x<9; x++) 
+		//Skip inputting values to right before finish screen
+		/*for (int x = 0; x<9; x++) 
 			for (int y = 0; y<8; y++) 
-				board[x][y] = solvedpuzzle[x][y];
+				board[x][y] = solvedpuzzle[x][y];*/
 		
 	} while (unfinishedboard (board)); // keep repeating until the board no longer has 0
 	
@@ -151,60 +177,24 @@ void move_cursor_top() {
 	#endif	
 }
 
-void validateinput (int board[9][9], char rowchar[10], int *row, char columnchar[10], int *column, char entrychar[10], int *entry) {
-	do {
-		do {
-			printf("Pick a row (1-9): ");
-			scanf(" %9s", rowchar); // add space before %s in scanf and limit chars to 9
-			*row = rowchar[0] - '0'; // Convert char to int
-			(*row)--;
-		} while (rowchar[1] != '\0' || rowchar[0] < '1' || rowchar[0] > '9');
-		
-		do {
-			printf("Pick a column (1-9): ");
-			scanf(" %9s", columnchar);
-			*column = columnchar[0] - '0';
-			(*column)--;
-		} while (columnchar[1] !='\0' || columnchar[0] < '1' || columnchar[0] >'9');
-		
-		// Check if entry is already in that row
-		if (board[*row][*column] !=0) printf("This cell is already filled. Select an empty cell\n");
-		
-	} while (board[*row][*column]!= 0);
-	
-	do {
-		printf("What number would you like to enter? (1-9): ");
-		scanf(" %9s", entrychar);
-		*entry = entrychar[0] - '0';
-	} while (entrychar[1] != '\0' || entrychar[0] <'1' || entrychar[0] > '9');
-}
 
-struct Numbers {
-	int ones;
-	int twos;
-	int threes;
-	int fours;
-	int fives;
-	int sixes;
-	int sevens;
-	int eights;
-	int nines;
-};
+
+
 
 // this function needs to be seen by print_board function
-void numbers_tally (int board[9][9], struct Numbers *tallyptr) {
+void numbers_tally (int board[9][9], struct Numbers *tally) {
 	// For each value in board, check how many of each number there are
 	for (int i = 0; i <9; i++) {
 		for (int j  = 0; j<9; j++) {
-			if (board[i][j] == 1) tallyptr->ones++;
-			if (board[i][j] == 2) tallyptr->twos++;
-			if (board[i][j] == 3) tallyptr->threes++;
-			if (board[i][j] == 4) tallyptr->fours++;
-			if (board[i][j] == 5) tallyptr->fives++;
-			if (board[i][j] == 6) tallyptr->sixes++;
-			if (board[i][j] == 7) tallyptr->sevens++;
-			if (board[i][j] == 8) tallyptr->eights++;
-			if (board[i][j] == 9) tallyptr->nines++;	
+			if (board[i][j] == 1) tally->ones++;
+			if (board[i][j] == 2) tally->twos++;
+			if (board[i][j] == 3) tally->threes++;
+			if (board[i][j] == 4) tally->fours++;
+			if (board[i][j] == 5) tally->fives++;
+			if (board[i][j] == 6) tally->sixes++;
+			if (board[i][j] == 7) tally->sevens++;
+			if (board[i][j] == 8) tally->eights++;
+			if (board[i][j] == 9) tally->nines++;	
 		}
 	}
 }
@@ -279,11 +269,14 @@ void print_boardpencil (int board[9][9], int pencil [3][3][3][3][3][3], int *hig
 
 void highlight (void (*print_boardpencil)(int board[9][9], int pencil [3][3][3][3][3][3], int *highlighted), int board [9][9], int pencil [3][3][3][3][3][3], int *highlighted) {
 	char highlightchar[10];
+	int temp;
 	do {	
-			printf("Pick a number to highlight (1-9): ");
+			printf("Pick a number to highlight "green italic bold"(1-9)"resetcolor", or "red bold italic"(0)"resetcolor" to go back to menu: ");
 			scanf(" %9s", highlightchar); // add space before %s in scanf and limit chars to 9
-			*highlighted = highlightchar[0] - '0'; // Convert char to int
-	} while (highlightchar[1] != '\0' || highlightchar[0] < '1' || highlightchar[0] > '9');
+			temp = highlightchar[0] - '0'; // Convert char to int
+	} while (highlightchar[1] != '\0' || highlightchar[0] < '0' || highlightchar[0] > '9');
+	if (temp ==0) return;
+	else *highlighted = temp;
 }
 
 void make3x3grid (int board[9][9], int grid [3][3][3][3]) {
@@ -359,6 +352,134 @@ void updatepencil (int board[9][9], int pencil [3][3][3][3][3][3], int row, int 
 				pencil[i][j][k][l][m][n] = 0;
 }
 
+void generatepencil (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3]) {
+	for (int x = 0; x<9; x++) {
+		for (int y = 0; y<9; y++) {
+			if (board[x][y] == 0) {
+				int i = x/3;
+				int j = y/3;
+				int k = x % 3;
+				int l = y % 3;
+				for (int mark = 1; mark <=9; mark++) {
+					int m = (mark - 1)/3;
+					int n = (mark - 1) % 3;
+					if (validmove(board, grid, x, y, mark) == 1) {
+						pencil[i][j][k][l][m][n] = 1;
+					} else {
+						pencil[i][j][k][l][m][n] = 0;
+					}
+				}
+			}
+		}
+	}
+}
+
+void penciloption (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3], int *pencilactive) {
+	char surechar[10];
+	int sure;
+	do {
+		printf("Are you sure? Enter "bold italic green"(1)"resetcolor" to "bold green"proceed"resetcolor" or "bold italic red"(0)"resetcolor" to "red bold"cancel"resetcolor": ");
+		scanf(" %9s", surechar); // add space before %s in scanf and limit chars to 9
+		sure = surechar[0] - '0'; // Convert char to int
+	} while (surechar[1] != '\0' || (surechar[0] != '0' && surechar[0] != '1'));
+	
+	if (sure == 1) {
+		if (*pencilactive == 0) {
+			generatepencil(board, grid, pencil); 
+			*pencilactive = 1;
+		} else {
+			memset(pencil, 0, sizeof(int)*3*3*3*3*3*3);
+			*pencilactive=0;
+		}
+	 } else return;
+}
+
+int validateinput (int board[9][9], int *row, int *column, int *entry) {
+	char rowchar[10], columnchar[10], entrychar[10];
+	do {
+		do {
+			printf("Pick a row "green italic bold"(1-9)"resetcolor", or "red bold italic"(0)"resetcolor" to go back to menu: ");
+			scanf(" %9s", rowchar); // add space before %s in scanf and limit chars to 9
+			*row = rowchar[0] - '0'; // Convert char to int
+			(*row)--;
+		} while (rowchar[1] != '\0' || rowchar[0] < '0' || rowchar[0] > '9');
+		if (*row == -1) return 0;
+		
+		do {
+			printf("Pick a column "green italic bold"(1-9)"resetcolor", or "red bold italic"(0)"resetcolor" to go back to menu: ");
+			scanf(" %9s", columnchar);
+			*column = columnchar[0] - '0';
+			(*column)--;
+		} while (columnchar[1] !='\0' || columnchar[0] < '0' || columnchar[0] >'9');
+		if (*column ==-1) return 0;
+		
+		// Check if entry is already in that row
+		if (board[*row][*column] !=0) printf(bold italic red"This cell is already filled. Select an empty cell\n"resetcolor);
+		
+	} while (board[*row][*column]!= 0);
+	
+	do {
+		printf("What number would you like to enter? "green italic bold"(1-9)"resetcolor" or "red bold italic"(0)"resetcolor" to go back to menu: ");
+		scanf(" %9s", entrychar);
+		*entry = entrychar[0] - '0';
+	} while (entrychar[1] != '\0' || entrychar[0] <'0' || entrychar[0] > '9');
+	if (*entry == -1) return 0;
+	
+	return 1;
+}
+
+int addpencil (int board[9][9], int pencil [3][3][3][3][3][3], char *message) {
+	char rowchar[10], columnchar[10], markchar[10];
+	int row, column, mark;
+	do {
+		do {
+			printf("Pick a row "green italic bold"(1-9)"resetcolor", or "red bold italic"(0)"resetcolor" to go back to menu: ");
+			scanf(" %9s", rowchar); // add space before %s in scanf and limit chars to 9
+			row = rowchar[0] - '0'; // Convert char to int
+			row--;
+		} while (rowchar[1] != '\0' || rowchar[0] < '0' || rowchar[0] > '9');
+		if (row == -1) return 0;
+		
+		do {
+			printf("Pick a column "green italic bold"(1-9)"resetcolor" or "red bold italic"(0)"resetcolor" to go back to menu: ");
+			scanf(" %9s", columnchar);
+			column = columnchar[0] - '0';
+			(column)--;
+		} while (columnchar[1] !='\0' || columnchar[0] < '0' || columnchar[0] >'9');
+		if (column ==-1) return 0;
+		
+		// Check if entry is already in that row
+		if (board[row][column] !=0) printf(bold italic red"Cannot add pencil marks to a cell that is already filled\n"resetcolor);
+		
+	} while (board[row][column]!= 0);
+	
+	do {
+		printf("What pencil mark would you like to add/erase? "green italic bold"(1-9)"resetcolor", or "red bold italic"(0)"resetcolor" to go back to menu: ");
+		scanf(" %9s", markchar);
+		mark = markchar[0] - '0';
+	} while (markchar[1] != '\0' || markchar[0] <'0' || markchar[0] > '9');
+	
+	if (mark == -1) return 0;
+	
+	int i = row /3;
+	int j = column /3;
+	int k = row % 3;
+	int l = column % 3;
+	int m = (int) (mark - 1.0) /3.0;
+	int n = (mark-1) % 3;
+	
+	if (pencil [i][j][k][l][m][n] ==0) {
+		// if not filled, then fill	
+		pencil [i][j][k][l][m][n] = 1;
+		sprintf(message, bold green italic"Pencil mark added successfully\n"resetcolor);
+	} else {
+		// if filled, then erase
+		pencil [i][j][k][l][m][n] = 0;	
+		sprintf(message, bold green italic "Pencil mark erased successfully\n" resetcolor);
+	}
+	return 1;
+}
+
 int unfinishedboard (int board [9][9]) {
 	int countzeros = 0;
 	for (int i = 0; i < 9; i++) {
@@ -399,30 +520,32 @@ int haspencilmarks (int pencil [3][3][3][3][3][3], int i, int j, int k, int l) {
 	return 0;
 }
 
-void generatepencil (int board[9][9], int grid[3][3][3][3], int pencil [3][3][3][3][3][3]) {
-	for (int x = 0; x<9; x++) {
-		for (int y = 0; y<9; y++) {
-			if (board[x][y] == 0) {
-				int i = x/3;
-				int j = y/3;
-				int k = x % 3;
-				int l = y % 3;
-				for (int mark = 1; mark <=9; mark++) {
-					int m = (mark - 1)/3;
-					int n = (mark - 1) % 3;
-					if (validmove(board, grid, x, y, mark) == 1) {
-						pencil[i][j][k][l][m][n] = 1;
-					} else {
-						pencil[i][j][k][l][m][n] = 0;
-					}
-				}
-			}
-		}
+int gettally (struct Numbers *tally, int entry) {
+	switch(entry) {
+		case 1: return tally->ones;
+		case 2: return tally->twos;
+		case 3: return tally->threes;
+		case 4: return tally->fours;
+		case 5: return tally->fives;
+		case 6: return tally->sixes;
+		case 7: return tally->sevens;
+		case 8: return tally->eights;
+		case 9: return tally->nines;
+		default: return 0;
 	}
 }
 
+void autohighlight(int board[9][9], int *highlighted, struct Numbers *tally) {
+	if (*highlighted <1 && *highlighted >9) return;
+	
+	for (int i =1; i<=9; i++) {
+		int next = (*highlighted %9) + 1; // when highlighted is 9, next number is 1
+		*highlighted = next;
+		if(gettally(tally, next) <9) return; // found next incomplete
+	}
+}
 
-void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes, char *message, int pencil [3][3][3][3][3][3]) {
+void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row, int column, int entry, int *mistakes, char *message, int pencil [3][3][3][3][3][3], int *highlighted, struct Numbers *tally) {
 	if (isvalid ==0) {
 		(entry == 8) ? sprintf(message,bold italic red"There is already an %d in this row. Please try again.\n"resetcolor, entry) : 
 		sprintf(message, bold italic red"There is already a %d in this row. Please try again.\n"resetcolor, entry);
@@ -439,7 +562,17 @@ void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row
 		} else {
 			board[row][column] = entry;
 			updatepencil (board, pencil, row, column, entry);
-			sprintf(message, bold italic green"Nice! Grid is now updated with your input\n"resetcolor);
+			*highlighted = entry;
+			memset(tally, 0, sizeof(*tally));
+			numbers_tally(board, tally);
+			if (gettally(tally, entry) == 9) {
+				int oldhighlight = *highlighted;
+				autohighlight(board, highlighted, tally);
+				if (*highlighted != oldhighlight)
+					sprintf(message, bold italic green"Nice! All cells with %d are now filled!\n"resetcolor, entry);
+				else
+					sprintf(message, bold italic green"Nice! Grid is now updated with your input\n"resetcolor);
+			}		
 		}
 	}
 }
@@ -447,7 +580,6 @@ void inputoutcome (int isvalid, int board[9][9], int solvedpuzzle[9][9], int row
 void print_finalboard (int board[9][9]) {
 	for (int x=0; x<9; x++) { // board row
 		for (int m = 0; m<3; m++) { // pencil mark row
-			printf(" ");
 			for (int y = 0; y <9; y++) { // board column
 				for (int n = 0; n<3; n++) { // pencil mark column
 					if (m==1 && n==1) {
@@ -456,23 +588,22 @@ void print_finalboard (int board[9][9]) {
 						printf(" ");
 					}	
 				}
-				if (y==2 || y ==5) printf("    |    "); // vertical lines to separate the 3x3 blocks
-				else if (y != 8) printf("     "); // add space between each number
+				if (y==2 || y ==5) printf(" | "); // vertical lines to separate the 3x3 blocks
+				else if (y != 8) printf("  "); // add space between each number
 			} 
 			printf("\n");	
 		}
-		printf("                        |                           |\n");
+		//printf("              |             |\n");
 		if (x==2 || x==5) {
-				for (int s=0; s<77;s++) printf("_");
+				for (int s=0; s<45;s++) printf("_");
 				printf("\n\n");
 		}
 	}
 }
 
-
 void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]) {
-    #define FW_WIDTH  80
-    #define FW_HEIGHT 10
+    #define FW_WIDTH  55
+    #define FW_HEIGHT 15
     #define FW_MAX    50
 
     typedef struct { float x, y, vx, vy; int alive, color; } FWParticle;
@@ -502,8 +633,8 @@ void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]) {
                 if (!p[i].alive) {
                     p[i].x     = x;
                     p[i].y     = y;
-                    p[i].vx    = ((float)(rand() % 21) - 10) / 5.0f;
-                    p[i].vy    = ((float)(rand() % 21) - 10) / 5.0f;
+                    p[i].vx    = ((float)(rand() % 21) - 10) / 3.0f;
+                    p[i].vy    = ((float)(rand() % 21) - 10) / 3.0f;
                     p[i].alive = 6 + rand() % 5;
                     p[i].color = color;
                 }
@@ -516,7 +647,7 @@ void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]) {
             if (!p[i].alive) continue;
             p[i].x  += p[i].vx;
             p[i].y  += p[i].vy;
-            p[i].vy += 0.2f;
+            p[i].vy += 0.35f;
             p[i].alive--;
         }
 
@@ -547,7 +678,7 @@ void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]) {
         }
         
         // congratulations message
-        printf(GREEN "\n            *~*~*~*~*  Congratulations! Puzzle Completed!  *~*~*~*~*\n\n" RESET);
+        printf(GREEN bold "\n\n~*~  Congratulations! Puzzle Completed!  ~*~\n\n" RESET);
 
         // finished board
         printf("\n");
@@ -555,14 +686,13 @@ void fireworks(int board[9][9], int pencil[3][3][3][3][3][3]) {
         printf("\n");
 
         #ifdef _WIN32
-            Sleep(80);
+            Sleep(40);
         #else
-            usleep(80 * 1000);
+            usleep(40 * 1000);
         #endif
         frame++;
     }
 }
-
 
 
 	/* test print 3x3
